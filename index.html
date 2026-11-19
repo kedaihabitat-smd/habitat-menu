@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kedai App</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <style>
+    body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .menu-card img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+    .menu-card { transition: transform 0.2s; border: none; border-radius: 12px; overflow: hidden; }
+    .menu-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+    .preview-3x4 { width: 150px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 8px; border: 2px dashed #ced4da; background-color: #f8f9fa; }
+    .sold-out-card { opacity: 0.72; }
+    .sold-out-img { filter: grayscale(75%); }
+    .category-pill { cursor: pointer; user-select: none; }
+    .floating-cart { position: fixed; bottom: 20px; right: 20px; z-index: 1000; border-radius: 50px; padding: 12px 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+    .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+  </style>
+</head>
+<body>
+
+<div id="loader" class="loader-overlay">
+  <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+</div>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center" href="#">
+      <img id="navLogo" src="" alt="Logo" width="38" height="38" class="rounded-circle me-2 bg-white object-fit-cover">
+      <span id="navShopName" class="fw-bold">Memuat Kedai...</span>
+    </a>
+    <div>
+      <button id="btnSwitchAdmin" class="btn btn-outline-warning btn-sm" onclick="openAdminLogin()">
+        <i class="bi bi-shield-lock"></i> Mode Admin
+      </button>
+      <button id="btnSwitchCustomer" class="btn btn-outline-light btn-sm d-none" onclick="switchToCustomer()">
+        <i class="bi bi-shop"></i> Tampilan Customer
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ==================== VIEW CUSTOMER ==================== -->
+<div id="customerView" class="container py-4">
+  <div id="categoryFilter" class="d-flex gap-2 overflow-auto pb-3 mb-3"></div>
+  <div id="menuGrid" class="row g-3 mb-5"></div>
+
+  <button class="btn btn-primary floating-cart fw-bold" data-bs-toggle="modal" data-bs-target="#cartModal">
+    <i class="bi bi-cart3 me-1"></i> Keranjang (<span id="cartCount">0</span>) - <span id="cartFloatingTotal">Rp 0</span>
+  </button>
+</div>
+
+<!-- Modal Keranjang Customer -->
+<div class="modal fade" id="cartModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-bag-check"></i> Rincian Pesanan Anda</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-bold">Nama Pemesan <span class="text-danger">*</span></label>
+          <input type="text" id="customerNameInput" class="form-control" placeholder="Masukkan nama Anda / Nomor Meja...">
+        </div>
+        <hr>
+        <div id="cartItemsContainer"></div>
+        <div class="d-flex justify-content-between align-items-center mt-3 p-3 bg-light rounded">
+          <h5 class="mb-0">Total Pembayaran:</h5>
+          <h4 class="mb-0 text-primary fw-bold" id="cartModalTotal">Rp 0</h4>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tambah Menu Lain</button>
+        <button type="button" class="btn btn-success fw-bold" onclick="placeOrder()">
+          <i class="bi bi-send-check"></i> Kirim Pesanan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== VIEW ADMIN ==================== -->
+<div id="adminView" class="container py-4 d-none">
+  <ul class="nav nav-tabs mb-4" id="adminTabs">
+    <li class="nav-item"><a class="nav-link active fw-bold" data-bs-toggle="tab" href="#tabOrders">Pesanan Masuk & Kasir</a></li>
+    <li class="nav-item"><a class="nav-link fw-bold" data-bs-toggle="tab" href="#tabAnalytics" onclick="loadAdminData()">Dashboard Penjualan</a></li>
+    <li class="nav-item"><a class="nav-link fw-bold" data-bs-toggle="tab" href="#tabMenus">Kelola Menu & Kategori</a></li>
+    <li class="nav-item"><a class="nav-link fw-bold" data-bs-toggle="tab" href="#tabSettings">Tampilan Kedai</a></li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- TAB 1: PESANAN MASUK & CATAT PENJUALAN MANUAL -->
+    <div class="tab-pane fade show active" id="tabOrders">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h5 class="mb-0">Daftar Pesanan Masuk</h5>
+        <div>
+          <button class="btn btn-outline-primary btn-sm me-1" onclick="loadAdminData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+          <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#manualOrderModal"><i class="bi bi-plus-circle"></i> Catat Penjualan Manual</button>
+        </div>
+      </div>
+
+      <div class="alert alert-light border d-flex flex-wrap justify-content-between align-items-center gap-2 py-2 px-3 mb-3">
+        <div class="small">
+          <i class="bi bi-layers text-primary"></i> Centang minimal 2 pesanan aktif untuk <strong>Gabung Bill</strong>:
+          <strong id="selectedMergeCount" class="text-primary">0 dipilih</strong>
+        </div>
+        <button id="btnOpenMergeModal" class="btn btn-sm btn-primary" disabled onclick="openMergeModal()">
+          <i class="bi bi-intersect"></i> Gabung Bill Terpilih
+        </button>
+      </div>
+
+      <div id="ordersList" class="row g-3"></div>
+    </div>
+
+    <!-- TAB 2: DASHBOARD PENJUALAN -->
+    <div class="tab-pane fade" id="tabAnalytics">
+      <h5 class="mb-3">Rekapitulasi Penjualan (Status: Selesai)</h5>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <div class="card text-bg-primary shadow-sm">
+            <div class="card-body">
+              <h6 class="card-title">Penjualan Hari Ini</h6>
+              <h3 class="fw-bold" id="statDaily">Rp 0</h3>
+              <small id="countDaily">0 Transaksi</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-bg-success shadow-sm">
+            <div class="card-body">
+              <h6 class="card-title">Penjualan Minggu Ini</h6>
+              <h3 class="fw-bold" id="statWeekly">Rp 0</h3>
+              <small id="countWeekly">0 Transaksi</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-bg-warning shadow-sm">
+            <div class="card-body">
+              <h6 class="card-title">Penjualan Bulan Ini</h6>
+              <h3 class="fw-bold" id="statMonthly">Rp 0</h3>
+              <small id="countMonthly">0 Transaksi</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-bg-dark shadow-sm">
+            <div class="card-body">
+              <h6 class="card-title">Penjualan Tahun Ini</h6>
+              <h3 class="fw-bold" id="statYearly">Rp 0</h3>
+              <small id="countYearly">0 Transaksi</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: KELOLA MENU & KATEGORI -->
+    <div class="tab-pane fade" id="tabMenus">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="card shadow-sm">
+            <div class="card-header fw-bold">Tambah Kategori Makanan</div>
+            <div class="card-body">
+              <div class="input-group mb-3">
+                <input type="text" id="newCategoryName" class="form-control" placeholder="Nama Kategori (misal: Kopi)">
+                <button class="btn btn-primary" onclick="handleAddCategory()">Tambah</button>
+              </div>
+              <ul id="adminCategoryList" class="list-group list-group-flush"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-8">
+          <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <span class="fw-bold">Daftar Menu</span>
+              <button class="btn btn-primary btn-sm" onclick="openMenuModal()"><i class="bi bi-plus-lg"></i> Tambah Menu</button>
+            </div>
+            <div class="card-body table-responsive">
+              <table class="table table-hover align-middle">
+                <thead>
+                  <tr><th>Foto</th><th>Menu</th><th>Kategori</th><th>Harga</th><th>Stok</th><th>Aksi</th></tr>
+                </thead>
+                <tbody id="adminMenuTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: PENGATURAN DASHBOARD CUSTOMER -->
+    <div class="tab-pane fade" id="tabSettings">
+      <div class="card shadow-sm" style="max-width: 500px;">
+        <div class="card-header fw-bold">Pengaturan Tampilan Customer</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Nama Kedai</label>
+            <input type="text" id="setShopName" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Upload Logo Baru</label>
+            <input type="file" id="setShopLogoFile" class="form-control" accept="image/*">
+          </div>
+          <button class="btn btn-primary" onclick="handleSaveSettings()">Simpan Perubahan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Tambah/Edit Menu -->
+<div class="modal fade" id="menuModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="menuModalTitle">Tambah Menu</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editMenuId">
+        <input type="hidden" id="editMenuExistingImg">
+        <input type="hidden" id="croppedMenuBase64">
+
+        <div class="mb-2">
+          <label class="form-label">Kategori</label>
+          <select id="menuCategory" class="form-select"></select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nama Menu</label>
+          <input type="text" id="menuName" class="form-control">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Deskripsi</label>
+          <textarea id="menuDesc" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Harga (Rp)</label>
+          <input type="number" id="menuPrice" class="form-control">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Status Ketersediaan</label>
+          <select id="menuAvailability" class="form-select">
+            <option value="true">Tersedia</option>
+            <option value="false">Stok Kosong</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-bold">Foto Menu (Rasio 3:4)</label>
+          <div class="d-flex align-items-center gap-3">
+            <img id="menuPreviewImg" src="https://via.placeholder.com/300x400?text=Rasio+3:4" class="preview-3x4" alt="Preview 3:4">
+            <div class="flex-grow-1">
+              <input type="file" id="menuImageFile" class="d-none" accept="image/*" onchange="processMenuImage3x4(this)">
+              <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="document.getElementById('menuImageFile').click()">
+                <i class="bi bi-camera"></i> Upload Foto Menu (3:4)
+              </button>
+              <small class="text-muted d-block" style="font-size: 0.78rem;">
+                Foto otomatis disesuaikan & dipotong ke rasio 3:4 (600x800 px).
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="handleSaveMenu()">Simpan Menu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Catat Penjualan Manual -->
+<div class="modal fade" id="manualOrderModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Catat Penjualan Langsung (Offline)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Nama Pelanggan</label>
+          <input type="text" id="manualCustName" class="form-control" value="Pelanggan Offline">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Pilih Menu</label>
+          <select id="manualMenuSelect" class="form-select"></select>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-4">
+            <label class="form-label">Qty</label>
+            <input type="number" id="manualQty" class="form-control" value="1" min="1">
+          </div>
+          <div class="col-8">
+            <label class="form-label">Catatan</label>
+            <input type="text" id="manualNote" class="form-control" placeholder="Opsional">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success" onclick="handleManualOrder()">Simpan Sebagai Selesai</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Gabung Bill -->
+<div class="modal fade" id="mergeBillModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-intersect"></i> Gabung Bill</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-bold">Nama Bill Gabungan</label>
+          <input type="text" id="mergeBillName" class="form-control" placeholder="Contoh: Meja 04 / Rombongan">
+        </div>
+        <div class="mb-2 small text-muted">Pesanan yang digabung:</div>
+        <div id="mergePreviewList" class="border rounded p-2 bg-light small mb-3" style="max-height: 220px; overflow-y: auto;"></div>
+        <div class="d-flex justify-content-between align-items-center p-2 bg-primary-subtle rounded">
+          <span class="fw-bold">Total Gabungan:</span>
+          <span id="mergeTotalAmount" class="fw-bold text-primary fs-5">Rp 0</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary fw-bold" onclick="submitMergeBill()">Konfirmasi Gabung Bill</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Split Bill -->
+<div class="modal fade" id="splitBillModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title"><i class="bi bi-scissors"></i> Split Bill — <span id="splitSourceOrderId"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="splitSourceIdInput">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <small class="text-muted">Pelanggan Asal:</small> <strong id="splitSourceCustomer"></strong>
+            <span class="mx-2">|</span>
+            <small class="text-muted">Total Asli:</small> <strong id="splitSourceTotal" class="text-primary"></strong>
+          </div>
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="splitMode" id="modeEqual" value="equal" checked onchange="renderSplitModeUI()">
+            <label class="btn btn-outline-dark" for="modeEqual">Bagi Rata</label>
+
+            <input type="radio" class="btn-check" name="splitMode" id="modeItem" value="item" onchange="renderSplitModeUI()">
+            <label class="btn btn-outline-dark" for="modeItem">Pilih Item / Qty</label>
+          </div>
+        </div>
+        <div id="splitModeContainer"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-warning fw-bold" onclick="submitSplitBill()">Simpan Hasil Split Bill</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const API_URL = "https://script.google.com/macros/s/AKfycbwg-6FtZchGFUIpU38LzcmAGRdedLNdZCdBK3Y9gmtQnh-ikeycxZdJ3nZej0c0urw/exec";
+
+  async function apiGet(action) {
+    const res = await fetch(`${API_URL}?action=${encodeURIComponent(action)}`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Gagal memuat data');
+    return json.data;
+  }
+
+  async function apiPost(payload) {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Gagal memproses permintaan');
+    return json.data;
+  }
+
+  let appData = { settings: {}, categories: [], menus: [] };
+  let cart = [];
+  let selectedCategory = 'ALL';
+  let currentOrders = [];
+  let selectedMergeIds = [];
+  let activeSplitOrder = null;
+
+  const formatRp = (num) => 'Rp ' + Number(num).toLocaleString('id-ID');
+  const showLoader = (show) => document.getElementById('loader').classList.toggle('d-none', !show);
+
+  window.onload = async () => {
+    try {
+      appData = await apiGet('init');
+      renderHeader();
+      renderCategories();
+      renderMenus();
+    } catch (err) {
+      alert('Gagal terhubung ke database: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  };
+
+  function renderHeader() {
+    document.getElementById('navShopName').innerText = appData.settings.ShopName || 'Kedai';
+    document.getElementById('navLogo').src = appData.settings.ShopLogo || '';
+    document.getElementById('setShopName').value = appData.settings.ShopName || '';
+  }
+
+  function renderCategories() {
+    const container = document.getElementById('categoryFilter');
+    let html = `<span class="badge rounded-pill px-3 py-2 category-pill ${selectedCategory === 'ALL' ? 'bg-primary' : 'bg-secondary'}" onclick="filterCategory('ALL')">Semua Menu</span>`;
+    appData.categories.forEach(c => {
+      html += `<span class="badge rounded-pill px-3 py-2 category-pill ${selectedCategory === c.name ? 'bg-primary' : 'bg-secondary'}" onclick="filterCategory('${c.name}')">${c.name}</span>`;
+    });
+    container.innerHTML = html;
+  }
+
+  function filterCategory(cat) {
+    selectedCategory = cat;
+    renderCategories();
+    renderMenus();
+  }
+
+  function renderMenus() {
+    const grid = document.getElementById('menuGrid');
+    const filtered = selectedCategory === 'ALL' ? appData.menus : appData.menus.filter(m => m.category === selectedCategory);
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `<div class="col-12 text-center text-muted py-5">Belum ada menu di kategori ini.</div>`;
+      return;
+    }
+
+    grid.innerHTML = filtered.map(m => {
+      const avail = m.isAvailable !== false;
+      return `
+      <div class="col-6 col-md-4 col-lg-3">
+        <div class="card menu-card h-100 shadow-sm ${avail ? '' : 'sold-out-card'}">
+          <img src="${m.image}" class="card-img-top ${avail ? '' : 'sold-out-img'}" alt="${m.name}">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
+              <span class="badge bg-light text-dark border">${m.category}</span>
+              ${avail
+                ? `<span class="badge bg-success-subtle text-success border border-success-subtle">Tersedia</span>`
+                : `<span class="badge bg-danger">Stok Kosong</span>`}
+            </div>
+            <h6 class="card-title fw-bold mb-1">${m.name}</h6>
+            <p class="card-text small text-muted flex-grow-1">${m.description}</p>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <span class="fw-bold text-primary">${formatRp(m.price)}</span>
+              ${avail
+                ? `<button class="btn btn-sm btn-primary" onclick="addToCart('${m.id}')"><i class="bi bi-plus-lg"></i> Tambah</button>`
+                : `<button class="btn btn-sm btn-secondary" disabled>Habis</button>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `}).join('');
+  }
+
+  function addToCart(menuId) {
+    const menu = appData.menus.find(m => m.id === menuId);
+    if (!menu || menu.isAvailable === false) {
+      return alert('Maaf, stok menu ini sedang kosong.');
+    }
+    cart.push({ cartId: Date.now() + Math.random(), id: menu.id, name: menu.name, price: menu.price, qty: 1, note: '' });
+    updateCartUI();
+  }
+
+  function updateCartUI() {
+    const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
+    const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
+    document.getElementById('cartCount').innerText = totalQty;
+    document.getElementById('cartFloatingTotal').innerText = formatRp(totalPrice);
+    document.getElementById('cartModalTotal').innerText = formatRp(totalPrice);
+
+    const container = document.getElementById('cartItemsContainer');
+    if (cart.length === 0) {
+      container.innerHTML = '<p class="text-center text-muted">Keranjang masih kosong.</p>';
+      return;
+    }
+
+    container.innerHTML = cart.map((item, idx) => `
+      <div class="border rounded p-2 mb-2 bg-white">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <strong>${item.name}</strong> <span class="text-muted small">(${formatRp(item.price)})</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="changeQty(${idx}, -1)">-</button>
+            <span>${item.qty}</span>
+            <button class="btn btn-sm btn-outline-secondary" onclick="changeQty(${idx}, 1)">+</button>
+            <button class="btn btn-sm btn-danger" onclick="removeCartItem(${idx})"><i class="bi bi-trash"></i></button>
+          </div>
+        </div>
+        <input type="text" class="form-control form-control-sm mt-2" placeholder="Catatan menu (misal: pedas, tanpa es)..." value="${item.note}" onchange="updateCartNote(${idx}, this.value)">
+      </div>
+    `).join('');
+  }
+
+  function changeQty(idx, delta) {
+    cart[idx].qty += delta;
+    if (cart[idx].qty <= 0) cart.splice(idx, 1);
+    updateCartUI();
+  }
+
+  function removeCartItem(idx) {
+    cart.splice(idx, 1);
+    updateCartUI();
+  }
+
+  function updateCartNote(idx, val) {
+    cart[idx].note = val;
+  }
+
+  async function placeOrder() {
+    const custName = document.getElementById('customerNameInput').value.trim();
+    if (!custName) return alert('Harap masukkan Nama Pemesan!');
+    if (cart.length === 0) return alert('Keranjang pesanan masih kosong!');
+
+    const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    showLoader(true);
+    try {
+      const res = await apiPost({
+        action: 'submitOrder',
+        customerName: custName,
+        items: cart,
+        totalPrice,
+        status: 'Pending'
+      });
+      alert(`Pesanan berhasil dikirim! Nomor Pesanan: ${res.orderId}\nAnda dapat melakukan transaksi baru kembali.`);
+      cart = [];
+      updateCartUI();
+      bootstrap.Modal.getInstance(document.getElementById('cartModal')).hide();
+    } catch (err) {
+      alert('Gagal mengirim pesanan: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  async function openAdminLogin() {
+    const pwd = prompt("Masukkan Password Admin:");
+    if (!pwd) return;
+    showLoader(true);
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'verifyAdmin', password: pwd })
+      });
+      const json = await res.json();
+      if (json.ok && json.valid) {
+        document.getElementById('customerView').classList.add('d-none');
+        document.getElementById('adminView').classList.remove('d-none');
+        document.getElementById('btnSwitchAdmin').classList.add('d-none');
+        document.getElementById('btnSwitchCustomer').classList.remove('d-none');
+        renderAdminMenusAndCategories();
+        await loadAdminData();
+      } else {
+        showLoader(false);
+        alert("Password salah!");
+      }
+    } catch (err) {
+      showLoader(false);
+      alert("Gagal verifikasi admin: " + err.message);
+    }
+  }
+
+  function switchToCustomer() {
+    document.getElementById('adminView').classList.add('d-none');
+    document.getElementById('customerView').classList.remove('d-none');
+    document.getElementById('btnSwitchAdmin').classList.remove('d-none');
+    document.getElementById('btnSwitchCustomer').classList.add('d-none');
+    renderCategories();
+    renderMenus();
+  }
+
+  async function loadAdminData() {
+    showLoader(true);
+    try {
+      const res = await apiGet('orders');
+      renderOrders(res.orders);
+      renderAnalytics(res.analytics);
+    } catch (err) {
+      alert('Gagal memuat data pesanan: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  function renderOrders(orders) {
+    currentOrders = orders || [];
+    selectedMergeIds = [];
+    updateMergeBarUI();
+
+    const container = document.getElementById('ordersList');
+    if (currentOrders.length === 0) {
+      container.innerHTML = '<div class="col-12 text-muted">Belum ada pesanan masuk.</div>';
+      return;
+    }
+
+    container.innerHTML = currentOrders.map(o => {
+      let badgeColor = 'bg-secondary';
+      if (o.status === 'Pending') badgeColor = 'bg-warning text-dark';
+      else if (o.status === 'Diproses') badgeColor = 'bg-info text-dark';
+      else if (o.status === 'Selesai') badgeColor = 'bg-success';
+      else if (o.status === 'Batal') badgeColor = 'bg-danger';
+
+      const isActive = (o.status === 'Pending' || o.status === 'Diproses');
+      let itemsHtml = o.items.map(i => `<li>${i.qty}x <strong>${i.name}</strong> (${formatRp(i.price * i.qty)}) ${i.note ? `<em class="text-danger">(${i.note})</em>` : ''}</li>`).join('');
+
+      return `
+        <div class="col-md-6 col-lg-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center gap-2">
+                ${isActive ? `<input type="checkbox" class="form-check-input merge-checkbox" value="${o.orderId}" onchange="toggleMergeSelect('${o.orderId}', this.checked)">` : ''}
+                <span class="fw-bold">${o.orderId}</span>
+              </div>
+              <span class="badge ${badgeColor}">${o.status}</span>
+            </div>
+            <div class="card-body">
+              <h6 class="fw-bold mb-0">${o.customerName}</h6>
+              <small class="text-muted">${o.timestamp}</small>
+              <ul class="mt-2 mb-2 ps-3 small">${itemsHtml}</ul>
+              <div class="fw-bold text-primary">Total: ${formatRp(o.totalPrice)}</div>
+            </div>
+            <div class="card-footer bg-white d-flex flex-wrap gap-1">
+              ${o.status === 'Pending' ? `<button class="btn btn-sm btn-info flex-fill" onclick="changeOrderStatus('${o.orderId}', 'Diproses')">Terima</button>` : ''}
+              ${isActive ? `<button class="btn btn-sm btn-outline-dark" onclick="openSplitModal('${o.orderId}')"><i class="bi bi-scissors"></i> Split</button>` : ''}
+              ${isActive ? `<button class="btn btn-sm btn-success flex-fill" onclick="changeOrderStatus('${o.orderId}', 'Selesai')">Selesai & Bayar</button>` : ''}
+              ${o.status === 'Pending' ? `<button class="btn btn-sm btn-outline-danger" onclick="changeOrderStatus('${o.orderId}', 'Batal')">Batal</button>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function changeOrderStatus(orderId, status) {
+    showLoader(true);
+    try {
+      const res = await apiPost({ action: 'updateOrderStatus', orderId, status });
+      renderOrders(res.orders);
+      renderAnalytics(res.analytics);
+    } catch (err) {
+      alert('Gagal mengubah status: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  function renderAnalytics(a) {
+    document.getElementById('statDaily').innerText = formatRp(a.daily.total);
+    document.getElementById('countDaily').innerText = `${a.daily.count} Transaksi`;
+    document.getElementById('statWeekly').innerText = formatRp(a.weekly.total);
+    document.getElementById('countWeekly').innerText = `${a.weekly.count} Transaksi`;
+    document.getElementById('statMonthly').innerText = formatRp(a.monthly.total);
+    document.getElementById('countMonthly').innerText = `${a.monthly.count} Transaksi`;
+    document.getElementById('statYearly').innerText = formatRp(a.yearly.total);
+    document.getElementById('countYearly').innerText = `${a.yearly.count} Transaksi`;
+  }
+
+  function toggleMergeSelect(orderId, checked) {
+    if (checked) {
+      if (!selectedMergeIds.includes(orderId)) selectedMergeIds.push(orderId);
+    } else {
+      selectedMergeIds = selectedMergeIds.filter(id => id !== orderId);
+    }
+    updateMergeBarUI();
+  }
+
+  function updateMergeBarUI() {
+    const countEl = document.getElementById('selectedMergeCount');
+    const btnEl = document.getElementById('btnOpenMergeModal');
+    if (countEl) countEl.innerText = `${selectedMergeIds.length} dipilih`;
+    if (btnEl) btnEl.disabled = selectedMergeIds.length < 2;
+  }
+
+  function openMergeModal() {
+    if (selectedMergeIds.length < 2) return;
+    const chosen = currentOrders.filter(o => selectedMergeIds.includes(o.orderId));
+    const total = chosen.reduce((sum, o) => sum + Number(o.totalPrice || 0), 0);
+
+    document.getElementById('mergeBillName').value = 'Gabungan (' + chosen.map(o => o.customerName).join(' + ') + ')';
+    document.getElementById('mergePreviewList').innerHTML = chosen.map(o => `
+      <div class="mb-2 pb-2 border-bottom">
+        <div class="d-flex justify-content-between">
+          <strong>${o.orderId} — ${o.customerName}</strong>
+          <span class="fw-bold">${formatRp(o.totalPrice)}</span>
+        </div>
+        <div class="text-muted">${o.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</div>
+      </div>
+    `).join('');
+    document.getElementById('mergeTotalAmount').innerText = formatRp(total);
+    new bootstrap.Modal(document.getElementById('mergeBillModal')).show();
+  }
+
+  async function submitMergeBill() {
+    const mergedName = document.getElementById('mergeBillName').value.trim();
+    showLoader(true);
+    bootstrap.Modal.getInstance(document.getElementById('mergeBillModal')).hide();
+    try {
+      const res = await apiPost({ action: 'mergeOrders', orderIds: selectedMergeIds, mergedCustomerName: mergedName });
+      renderOrders(res.orders);
+      renderAnalytics(res.analytics);
+      alert('Bill berhasil digabung menjadi 1 pesanan aktif.');
+    } catch (err) {
+      alert(err.message || 'Gagal menggabung bill.');
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  function openSplitModal(orderId) {
+    const order = currentOrders.find(o => o.orderId === orderId);
+    if (!order) return;
+    activeSplitOrder = order;
+
+    document.getElementById('splitSourceOrderId').innerText = order.orderId;
+    document.getElementById('splitSourceIdInput').value = order.orderId;
+    document.getElementById('splitSourceCustomer').innerText = order.customerName;
+    document.getElementById('splitSourceTotal').innerText = formatRp(order.totalPrice);
+    document.getElementById('modeEqual').checked = true;
+
+    renderSplitModeUI();
+    new bootstrap.Modal(document.getElementById('splitBillModal')).show();
+  }
+
+  function renderSplitModeUI() {
+    const mode = document.querySelector('input[name="splitMode"]:checked').value;
+    const container = document.getElementById('splitModeContainer');
+    if (!activeSplitOrder) return;
+
+    if (mode === 'equal') {
+      container.innerHTML = `
+        <div class="mb-3">
+          <label class="form-label fw-bold">Jumlah Orang / Pembagian Bill</label>
+          <input type="number" id="splitPeopleCount" class="form-control" value="2" min="2" max="20" onchange="recalcEqualSplit()">
+        </div>
+        <div id="equalSplitRows"></div>
+      `;
+      recalcEqualSplit();
+    } else {
+      const rowsHtml = activeSplitOrder.items.map((it, idx) => `
+        <tr>
+          <td>
+            <strong>${it.name}</strong> <small class="text-muted">(${formatRp(it.price)})</small>
+            ${it.note ? `<br><em class="small text-danger">${it.note}</em>` : ''}
+          </td>
+          <td class="text-center">${it.qty}</td>
+          <td style="width: 110px;">
+            <input type="number" class="form-control form-control-sm split-qty-a" data-idx="${idx}" min="0" max="${it.qty}" value="${it.qty}" onchange="recalcItemSplit()">
+          </td>
+          <td style="width: 110px;">
+            <input type="number" class="form-control form-control-sm split-qty-b" data-idx="${idx}" min="0" max="${it.qty}" value="0" onchange="recalcItemSplit()">
+          </td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label small fw-bold">Nama Bill 1</label>
+            <input type="text" id="splitNameA" class="form-control form-control-sm" value="${activeSplitOrder.customerName} (Bill 1)">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-bold">Nama Bill 2</label>
+            <input type="text" id="splitNameB" class="form-control form-control-sm" value="${activeSplitOrder.customerName} (Bill 2)">
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle">
+            <thead class="table-light">
+              <tr><th>Menu</th><th class="text-center">Qty Asli</th><th>Qty Bill 1</th><th>Qty Bill 2</th></tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-between bg-light p-2 rounded small">
+          <div>Bill 1: <strong id="totalSplitA" class="text-primary">Rp 0</strong></div>
+          <div>Bill 2: <strong id="totalSplitB" class="text-primary">Rp 0</strong></div>
+        </div>
+      `;
+      recalcItemSplit();
+    }
+  }
+
+  function recalcEqualSplit() {
+    const n = Math.max(2, parseInt(document.getElementById('splitPeopleCount').value || '2', 10));
+    const total = Number(activeSplitOrder.totalPrice || 0);
+    const basePart = Math.floor(total / n);
+    const remainder = total - (basePart * n);
+
+    let html = '';
+    for (let i = 0; i < n; i++) {
+      const amt = basePart + (i === 0 ? remainder : 0);
+      html += `
+        <div class="input-group input-group-sm mb-2">
+          <span class="input-group-text">Bill ${i + 1}</span>
+          <input type="text" class="form-control split-equal-name" value="${activeSplitOrder.customerName} #${i + 1}">
+          <span class="input-group-text fw-bold">${formatRp(amt)}</span>
+        </div>
+      `;
+    }
+    document.getElementById('equalSplitRows').innerHTML = html;
+  }
+
+  function recalcItemSplit() {
+    let sumA = 0, sumB = 0;
+    activeSplitOrder.items.forEach((it, idx) => {
+      const qA = Math.max(0, parseInt(document.querySelector(`.split-qty-a[data-idx="${idx}"]`).value || '0', 10));
+      const qB = Math.max(0, parseInt(document.querySelector(`.split-qty-b[data-idx="${idx}"]`).value || '0', 10));
+      sumA += qA * Number(it.price);
+      sumB += qB * Number(it.price);
+    });
+    document.getElementById('totalSplitA').innerText = formatRp(sumA);
+    document.getElementById('totalSplitB').innerText = formatRp(sumB);
+  }
+
+  async function submitSplitBill() {
+    const mode = document.querySelector('input[name="splitMode"]:checked').value;
+    const sourceId = document.getElementById('splitSourceIdInput').value;
+    let bills = [];
+
+    if (mode === 'equal') {
+      const names = Array.from(document.querySelectorAll('.split-equal-name')).map(el => el.value.trim());
+      const n = names.length;
+      const total = Number(activeSplitOrder.totalPrice || 0);
+      const basePart = Math.floor(total / n);
+      const remainder = total - (basePart * n);
+
+      for (let i = 0; i < n; i++) {
+        bills.push({
+          customerName: names[i] || `${activeSplitOrder.customerName} #${i + 1}`,
+          items: [{
+            id: 'SPLIT-EQ',
+            name: `Bagian Split (1/${n}) dari ${activeSplitOrder.orderId}`,
+            price: basePart + (i === 0 ? remainder : 0),
+            qty: 1,
+            note: ''
+          }],
+          totalPrice: basePart + (i === 0 ? remainder : 0)
+        });
+      }
+    } else {
+      const nameA = document.getElementById('splitNameA').value.trim() || `${activeSplitOrder.customerName} (Bill 1)`;
+      const nameB = document.getElementById('splitNameB').value.trim() || `${activeSplitOrder.customerName} (Bill 2)`;
+      let itemsA = [], itemsB = [], sumA = 0, sumB = 0;
+
+      for (let idx = 0; idx < activeSplitOrder.items.length; idx++) {
+        const it = activeSplitOrder.items[idx];
+        const qA = Math.max(0, parseInt(document.querySelector(`.split-qty-a[data-idx="${idx}"]`).value || '0', 10));
+        const qB = Math.max(0, parseInt(document.querySelector(`.split-qty-b[data-idx="${idx}"]`).value || '0', 10));
+
+        if (qA + qB > Number(it.qty)) {
+          return alert(`Total Qty split untuk "${it.name}" (${qA + qB}) melebihi Qty asli (${it.qty}).`);
+        }
+        if (qA > 0) { itemsA.push({ ...it, qty: qA }); sumA += qA * Number(it.price); }
+        if (qB > 0) { itemsB.push({ ...it, qty: qB }); sumB += qB * Number(it.price); }
+      }
+
+      if (itemsA.length === 0 || itemsB.length === 0) {
+        return alert('Pastikan kedua bill memiliki minimal 1 item agar terpecah menjadi 2 bill.');
+      }
+
+      bills = [
+        { customerName: nameA, items: itemsA, totalPrice: sumA },
+        { customerName: nameB, items: itemsB, totalPrice: sumB }
+      ];
+    }
+
+    showLoader(true);
+    bootstrap.Modal.getInstance(document.getElementById('splitBillModal')).hide();
+    try {
+      const res = await apiPost({ action: 'splitOrder', sourceOrderId: sourceId, splitBills: bills });
+      renderOrders(res.orders);
+      renderAnalytics(res.analytics);
+      alert('Pesanan berhasil dipecah menjadi beberapa bill.');
+    } catch (err) {
+      alert(err.message || 'Gagal melakukan split bill.');
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  function renderAdminMenusAndCategories() {
+    document.getElementById('adminCategoryList').innerHTML = appData.categories.map(c => `<li class="list-group-item">${c.name}</li>`).join('');
+    const catOptions = appData.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+    document.getElementById('menuCategory').innerHTML = catOptions;
+    document.getElementById('manualMenuSelect').innerHTML = appData.menus
+      .filter(m => m.isAvailable !== false)
+      .map(m => `<option value="${m.id}">${m.name} - ${formatRp(m.price)}</option>`).join('');
+
+    document.getElementById('adminMenuTable').innerHTML = appData.menus.map(m => {
+      const avail = m.isAvailable !== false;
+      return `
+      <tr>
+        <td><img src="${m.image}" width="45" height="60" class="rounded object-fit-cover"></td>
+        <td><strong>${m.name}</strong><br><small class="text-muted">${m.description}</small></td>
+        <td>${m.category}</td>
+        <td>${formatRp(m.price)}</td>
+        <td>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" ${avail ? 'checked' : ''} onchange="handleToggleAvailability('${m.id}', this.checked)">
+            <label class="form-check-label small fw-semibold ${avail ? 'text-success' : 'text-danger'}">
+              ${avail ? 'Tersedia' : 'Stok Kosong'}
+            </label>
+          </div>
+        </td>
+        <td>
+          <button class="btn btn-sm btn-warning" onclick="openMenuModal('${m.id}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="handleDeleteMenu('${m.id}')"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>
+    `}).join('');
+  }
+
+  async function handleToggleAvailability(id, isAvailable) {
+    showLoader(true);
+    try {
+      appData.menus = await apiPost({ action: 'toggleAvailability', id, isAvailable });
+      renderAdminMenusAndCategories();
+    } catch (err) {
+      alert('Gagal mengubah stok: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  async function handleAddCategory() {
+    const name = document.getElementById('newCategoryName').value.trim();
+    if (!name) return;
+    showLoader(true);
+    try {
+      const newCat = await apiPost({ action: 'addCategory', name });
+      appData.categories.push(newCat);
+      document.getElementById('newCategoryName').value = '';
+      renderAdminMenusAndCategories();
+    } catch (err) {
+      alert('Gagal menambah kategori: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  function openMenuModal(menuId = null) {
+    if (appData.categories.length === 0) return alert('Buat kategori makanan terlebih dahulu!');
+    document.getElementById('menuImageFile').value = '';
+    document.getElementById('croppedMenuBase64').value = '';
+
+    if (menuId) {
+      const m = appData.menus.find(x => x.id === menuId);
+      document.getElementById('menuModalTitle').innerText = 'Edit Menu';
+      document.getElementById('editMenuId').value = m.id;
+      document.getElementById('editMenuExistingImg').value = m.image;
+      document.getElementById('menuPreviewImg').src = m.image || 'https://via.placeholder.com/300x400?text=Rasio+3:4';
+      document.getElementById('menuCategory').value = m.category;
+      document.getElementById('menuName').value = m.name;
+      document.getElementById('menuDesc').value = m.description;
+      document.getElementById('menuPrice').value = m.price;
+      document.getElementById('menuAvailability').value = (m.isAvailable !== false).toString();
+    } else {
+      document.getElementById('menuModalTitle').innerText = 'Tambah Menu Baru';
+      document.getElementById('editMenuId').value = '';
+      document.getElementById('editMenuExistingImg').value = '';
+      document.getElementById('menuPreviewImg').src = 'https://via.placeholder.com/300x400?text=Rasio+3:4';
+      document.getElementById('menuName').value = '';
+      document.getElementById('menuDesc').value = '';
+      document.getElementById('menuPrice').value = '';
+      document.getElementById('menuAvailability').value = 'true';
+    }
+    new bootstrap.Modal(document.getElementById('menuModal')).show();
+  }
+
+  function processMenuImage3x4(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const targetRatio = 3 / 4;
+        const srcRatio = img.width / img.height;
+        let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+        if (srcRatio > targetRatio) {
+          sWidth = img.height * targetRatio;
+          sx = (img.width - sWidth) / 2;
+        } else if (srcRatio < targetRatio) {
+          sHeight = img.width / targetRatio;
+          sy = (img.height - sHeight) / 2;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 600;
+        canvas.height = 800;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, 600, 800);
+
+        const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        document.getElementById('menuPreviewImg').src = croppedDataUrl;
+        document.getElementById('croppedMenuBase64').value = croppedDataUrl;
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function getBase64(file) {
+    return new Promise((resolve, reject) => {
+      if (!file) return resolve(null);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+  }
+
+  async function handleSaveMenu() {
+    const croppedImg = document.getElementById('croppedMenuBase64').value;
+    const menuObj = {
+      id: document.getElementById('editMenuId').value || null,
+      category: document.getElementById('menuCategory').value,
+      name: document.getElementById('menuName').value,
+      description: document.getElementById('menuDesc').value,
+      price: document.getElementById('menuPrice').value,
+      isAvailable: document.getElementById('menuAvailability').value === 'true',
+      image: croppedImg || document.getElementById('editMenuExistingImg').value
+    };
+
+    if (!menuObj.name || !menuObj.price) return alert('Nama dan Harga wajib diisi!');
+    showLoader(true);
+    bootstrap.Modal.getInstance(document.getElementById('menuModal')).hide();
+
+    try {
+      appData.menus = await apiPost({ action: 'saveMenu', menu: menuObj });
+      renderAdminMenusAndCategories();
+    } catch (err) {
+      alert('Gagal menyimpan menu: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  async function handleDeleteMenu(id) {
+    if (!confirm('Hapus menu ini?')) return;
+    showLoader(true);
+    try {
+      appData.menus = await apiPost({ action: 'deleteMenu', id });
+      renderAdminMenusAndCategories();
+    } catch (err) {
+      alert('Gagal menghapus menu: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
+  async function handleManualOrder() {
+    const custName = document.getElementById('manualCustName').value.trim() || 'Pelanggan Offline';
+    const menuId = document.getElementById('manualMenuSelect').value;
+    const qty = Number(document.getElementById('manualQty').value);
+    const note = document.getElementById('manualNote').value;
+    const menu = appData.menus.find(m => m.id === menuId);
+    if (!menu) return;
+
+    const items = [{ id: menu.id, name: menu.name, price: menu.price, qty: qty, note: note }];
+    const total = menu.price * qty;
+
+    showLoader(true);
+    bootstrap.Modal.getInstance(document.getElementById('manualOrderModal')).hide();
+    try {
+      await apiPost({ action: 'submitOrder', customerName: custName, items, totalPrice: total, status: 'Selesai' });
+      await loadAdminData();
+    } catch (err) {
+      showLoader(false);
+      alert('Gagal mencatat penjualan: ' + err.message);
+    }
+  }
+
+  async function handleSaveSettings() {
+    const shopName = document.getElementById('setShopName').value;
+    const file = document.getElementById('setShopLogoFile').files[0];
+    const base64Logo = await getBase64(file);
+
+    showLoader(true);
+    try {
+      appData.settings = await apiPost({ action: 'saveSettings', shopName, logoBase64: base64Logo });
+      renderHeader();
+      alert('Tampilan kedai berhasil diperbarui!');
+    } catch (err) {
+      alert('Gagal menyimpan pengaturan: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+</script>
+</body>
+</html>
