@@ -911,7 +911,7 @@
       const avail = m.isAvailable !== false;
       return `
       <tr>
-        <td><img src="${m.image}" width="45" height="60" class="rounded object-fit-cover"></td>
+        <td><img src="${m.image}" width="50" height="50" class="rounded object-fit-cover"></td>
         <td><strong>${m.name}</strong><br><small class="text-muted">${m.description}</small></td>
         <td>${m.category}</td>
         <td>${formatRp(m.price)}</td>
@@ -969,7 +969,7 @@
       document.getElementById('menuModalTitle').innerText = 'Edit Menu';
       document.getElementById('editMenuId').value = m.id;
       document.getElementById('editMenuExistingImg').value = m.image;
-      document.getElementById('menuPreviewImg').src = m.image || 'https://via.placeholder.com/300x400?text=Rasio+3:4';
+      document.getElementById('menuPreviewImg').src = m.image || 'https://via.placeholder.com/300x300?text=Rasio+1:1';
       document.getElementById('menuCategory').value = m.category;
       document.getElementById('menuName').value = m.name;
       document.getElementById('menuDesc').value = m.description;
@@ -979,7 +979,7 @@
       document.getElementById('menuModalTitle').innerText = 'Tambah Menu Baru';
       document.getElementById('editMenuId').value = '';
       document.getElementById('editMenuExistingImg').value = '';
-      document.getElementById('menuPreviewImg').src = 'https://via.placeholder.com/300x400?text=Rasio+3:4';
+      document.getElementById('menuPreviewImg').src = 'https://via.placeholder.com/300x300?text=Rasio+1:1';
       document.getElementById('menuName').value = '';
       document.getElementById('menuDesc').value = '';
       document.getElementById('menuPrice').value = '';
@@ -996,7 +996,7 @@
     reader.onload = function(e) {
       const img = new Image();
       img.onload = function() {
-        const targetRatio = 3 / 4;
+        const targetRatio = 1 / 1;
         const srcRatio = img.width / img.height;
         let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
 
@@ -1010,9 +1010,9 @@
 
         const canvas = document.createElement('canvas');
         canvas.width = 600;
-        canvas.height = 800;
+        canvas.height = 600;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, 600, 800);
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, 600, 600);
 
         const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
         document.getElementById('menuPreviewImg').src = croppedDataUrl;
