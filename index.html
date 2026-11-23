@@ -11,7 +11,7 @@
     .menu-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
     .menu-card { transition: transform 0.2s; border: none; border-radius: 12px; overflow: hidden; }
     .menu-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
-    .preview-3x4 { width: 150px; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; border: 2px dashed #ced4da; background-color: #f8f9fa; }
+    .preview-1x1 { width: 150px; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; border: 2px dashed #ced4da; background-color: #f8f9fa; }
     .sold-out-card { opacity: 0.72; }
     .sold-out-img { filter: grayscale(75%); }
     .category-pill { cursor: pointer; user-select: none; }
@@ -93,10 +93,13 @@
   </ul>
 
   <div class="tab-content">
-    <!-- TAB 1: PESANAN MASUK & CATAT PENJUALAN MANUAL -->
+    <!-- TAB 1: PESANAN MASUK & CATAT PENJUALAN MANUAL (HARI INI SAJA) -->
     <div class="tab-pane fade show active" id="tabOrders">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h5 class="mb-0">Daftar Pesanan Masuk</h5>
+        <div>
+          <h5 class="mb-0">Pesanan Masuk Hari Ini</h5>
+          <small class="text-muted" id="todayDateLabel"></small>
+        </div>
         <div>
           <button class="btn btn-outline-primary btn-sm me-1" onclick="loadAdminData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
           <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#manualOrderModal"><i class="bi bi-plus-circle"></i> Catat Penjualan Manual</button>
@@ -105,56 +108,86 @@
 
       <div class="alert alert-light border d-flex flex-wrap justify-content-between align-items-center gap-2 py-2 px-3 mb-3">
         <div class="small">
-          <i class="bi bi-layers text-primary"></i> Centang minimal 2 pesanan aktif untuk <strong>Gabung Bill</strong>:
-          <strong id="selectedMergeCount" class="text-primary">0 dipilih</strong>
+          <i class="bi bi-check2-square text-primary"></i>
+          Gabung Bill (min. 2 aktif): <strong id="selectedMergeCount" class="text-primary">0 dipilih</strong>
+          <span class="mx-2">|</span>
+          Hapus Pesanan: <strong id="selectedDeleteCount" class="text-danger">0 dipilih</strong>
         </div>
-        <button id="btnOpenMergeModal" class="btn btn-sm btn-primary" disabled onclick="openMergeModal()">
-          <i class="bi bi-intersect"></i> Gabung Bill Terpilih
-        </button>
+        <div class="d-flex gap-2">
+          <button id="btnOpenMergeModal" class="btn btn-sm btn-primary" disabled onclick="openMergeModal()">
+            <i class="bi bi-intersect"></i> Gabung Bill
+          </button>
+          <button id="btnDeleteSelectedOrders" class="btn btn-sm btn-danger" disabled onclick="handleDeleteSelectedOrders()">
+            <i class="bi bi-trash"></i> Hapus Terpilih
+          </button>
+        </div>
       </div>
 
       <div id="ordersList" class="row g-3"></div>
     </div>
 
-    <!-- TAB 2: DASHBOARD PENJUALAN -->
+    <!-- TAB 2: DASHBOARD PENJUALAN (SUB-TAB HARIAN, MINGGUAN, BULANAN, TAHUNAN) -->
     <div class="tab-pane fade" id="tabAnalytics">
-      <h5 class="mb-3">Rekapitulasi Penjualan (Status: Selesai)</h5>
-      <div class="row g-3 mb-4">
-        <div class="col-md-3">
-          <div class="card text-bg-primary shadow-sm">
+      <h5 class="mb-3">Dashboard Penjualan (Status: Selesai)</h5>
+
+      <ul class="nav nav-pills mb-3" id="salesPeriodTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active fw-semibold" id="subtab-daily-btn" data-bs-toggle="pill" data-bs-target="#subtabDaily" type="button">Harian</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link fw-semibold" id="subtab-weekly-btn" data-bs-toggle="pill" data-bs-target="#subtabWeekly" type="button">Mingguan</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link fw-semibold" id="subtab-monthly-btn" data-bs-toggle="pill" data-bs-target="#subtabMonthly" type="button">Bulanan</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link fw-semibold" id="subtab-yearly-btn" data-bs-toggle="pill" data-bs-target="#subtabYearly" type="button">Tahunan</button>
+        </li>
+      </ul>
+
+      <div class="tab-content" id="salesPeriodTabContent">
+        <div class="tab-pane fade show active" id="subtabDaily">
+          <div class="card text-bg-primary shadow-sm mb-3">
             <div class="card-body">
-              <h6 class="card-title">Penjualan Hari Ini</h6>
-              <h3 class="fw-bold" id="statDaily">Rp 0</h3>
+              <h6 class="card-title mb-1">Total Penjualan Harian</h6>
+              <h3 class="fw-bold mb-0" id="statDaily">Rp 0</h3>
               <small id="countDaily">0 Transaksi</small>
             </div>
           </div>
+          <div id="listDailyOrders"></div>
         </div>
-        <div class="col-md-3">
-          <div class="card text-bg-success shadow-sm">
+
+        <div class="tab-pane fade" id="subtabWeekly">
+          <div class="card text-bg-success shadow-sm mb-3">
             <div class="card-body">
-              <h6 class="card-title">Penjualan Minggu Ini</h6>
-              <h3 class="fw-bold" id="statWeekly">Rp 0</h3>
+              <h6 class="card-title mb-1">Total Penjualan Mingguan</h6>
+              <h3 class="fw-bold mb-0" id="statWeekly">Rp 0</h3>
               <small id="countWeekly">0 Transaksi</small>
             </div>
           </div>
+          <div id="listWeeklyOrders"></div>
         </div>
-        <div class="col-md-3">
-          <div class="card text-bg-warning shadow-sm">
+
+        <div class="tab-pane fade" id="subtabMonthly">
+          <div class="card text-bg-warning shadow-sm mb-3">
             <div class="card-body">
-              <h6 class="card-title">Penjualan Bulan Ini</h6>
-              <h3 class="fw-bold" id="statMonthly">Rp 0</h3>
+              <h6 class="card-title mb-1">Total Penjualan Bulanan</h6>
+              <h3 class="fw-bold mb-0" id="statMonthly">Rp 0</h3>
               <small id="countMonthly">0 Transaksi</small>
             </div>
           </div>
+          <div id="listMonthlyOrders"></div>
         </div>
-        <div class="col-md-3">
-          <div class="card text-bg-dark shadow-sm">
+
+        <div class="tab-pane fade" id="subtabYearly">
+          <div class="card text-bg-dark shadow-sm mb-3">
             <div class="card-body">
-              <h6 class="card-title">Penjualan Tahun Ini</h6>
-              <h3 class="fw-bold" id="statYearly">Rp 0</h3>
+              <h6 class="card-title mb-1">Total Penjualan Tahunan</h6>
+              <h3 class="fw-bold mb-0" id="statYearly">Rp 0</h3>
               <small id="countYearly">0 Transaksi</small>
             </div>
           </div>
+          <div id="listYearlyOrders"></div>
         </div>
       </div>
     </div>
@@ -252,9 +285,9 @@
         <div class="mb-2">
           <label class="form-label fw-bold">Foto Menu (Rasio 1:1)</label>
           <div class="d-flex align-items-center gap-3">
-            <img id="menuPreviewImg" src="https://via.placeholder.com/300x300?text=Rasio+1:1" class="preview-3x4" alt="Preview 1:1">
+            <img id="menuPreviewImg" src="https://via.placeholder.com/300x300?text=Rasio+1:1" class="preview-1x1" alt="Preview 1:1">
             <div class="flex-grow-1">
-              <input type="file" id="menuImageFile" class="d-none" accept="image/*" onchange="processMenuImage3x4(this)">
+              <input type="file" id="menuImageFile" class="d-none" accept="image/*" onchange="processMenuImage1x1(this)">
               <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="document.getElementById('menuImageFile').click()">
                 <i class="bi bi-camera"></i> Upload Foto Menu (1:1)
               </button>
@@ -396,12 +429,22 @@
   let selectedCategory = 'ALL';
   let currentOrders = [];
   let selectedMergeIds = [];
+  let selectedDeleteIds = [];
   let activeSplitOrder = null;
 
   const formatRp = (num) => 'Rp ' + Number(num).toLocaleString('id-ID');
   const showLoader = (show) => document.getElementById('loader').classList.toggle('d-none', !show);
 
+  function setTodayDateLabel() {
+    const el = document.getElementById('todayDateLabel');
+    if (!el) return;
+    el.innerText = 'Tanggal: ' + new Date().toLocaleDateString('id-ID', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+  }
+
   window.onload = async () => {
+    setTodayDateLabel();
     try {
       appData = await apiGet('init');
       renderHeader();
@@ -604,13 +647,16 @@
   }
 
   function renderOrders(orders) {
+    setTodayDateLabel();
     currentOrders = orders || [];
     selectedMergeIds = [];
+    selectedDeleteIds = [];
     updateMergeBarUI();
+    updateDeleteBarUI();
 
     const container = document.getElementById('ordersList');
     if (currentOrders.length === 0) {
-      container.innerHTML = '<div class="col-12 text-muted">Belum ada pesanan masuk.</div>';
+      container.innerHTML = '<div class="col-12 text-center text-muted py-4 border rounded bg-white">Belum ada pesanan masuk pada hari ini.</div>';
       return;
     }
 
@@ -629,10 +675,16 @@
           <div class="card shadow-sm h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
               <div class="d-flex align-items-center gap-2">
-                ${isActive ? `<input type="checkbox" class="form-check-input merge-checkbox" value="${o.orderId}" onchange="toggleMergeSelect('${o.orderId}', this.checked)">` : ''}
+                ${isActive ? `<input type="checkbox" class="form-check-input merge-checkbox" title="Pilih untuk Gabung Bill" value="${o.orderId}" onchange="toggleMergeSelect('${o.orderId}', this.checked)">` : ''}
                 <span class="fw-bold">${o.orderId}</span>
               </div>
-              <span class="badge ${badgeColor}">${o.status}</span>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge ${badgeColor}">${o.status}</span>
+                <div class="form-check m-0" title="Centang untuk hapus pesanan">
+                  <input type="checkbox" class="form-check-input delete-checkbox" value="${o.orderId}" onchange="toggleDeleteSelect('${o.orderId}', this.checked)">
+                  <label class="form-check-label small text-danger">Hapus</label>
+                </div>
+              </div>
             </div>
             <div class="card-body">
               <h6 class="fw-bold mb-0">${o.customerName}</h6>
@@ -652,6 +704,39 @@
     }).join('');
   }
 
+  function toggleDeleteSelect(orderId, checked) {
+    if (checked) {
+      if (!selectedDeleteIds.includes(orderId)) selectedDeleteIds.push(orderId);
+    } else {
+      selectedDeleteIds = selectedDeleteIds.filter(id => id !== orderId);
+    }
+    updateDeleteBarUI();
+  }
+
+  function updateDeleteBarUI() {
+    const countEl = document.getElementById('selectedDeleteCount');
+    const btnEl = document.getElementById('btnDeleteSelectedOrders');
+    if (countEl) countEl.innerText = `${selectedDeleteIds.length} dipilih`;
+    if (btnEl) btnEl.disabled = selectedDeleteIds.length === 0;
+  }
+
+  async function handleDeleteSelectedOrders() {
+    if (selectedDeleteIds.length === 0) return;
+    if (!confirm(`Hapus ${selectedDeleteIds.length} pesanan yang dicentang?`)) return;
+
+    showLoader(true);
+    try {
+      const res = await apiPost({ action: 'deleteOrdersBatch', orderIds: selectedDeleteIds });
+      renderOrders(res.orders);
+      renderAnalytics(res.analytics);
+      alert('Pesanan terpilih berhasil dihapus.');
+    } catch (err) {
+      alert('Gagal menghapus pesanan: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
   async function changeOrderStatus(orderId, status) {
     showLoader(true);
     try {
@@ -665,15 +750,48 @@
     }
   }
 
+  function renderPeriodOrdersTable(list) {
+    if (!list || list.length === 0) {
+      return '<div class="text-muted small py-3 border rounded bg-white text-center">Belum ada transaksi selesai pada periode ini.</div>';
+    }
+    return `
+      <div class="table-responsive bg-white border rounded shadow-sm">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr><th>ID Order</th><th>Waktu</th><th>Pelanggan</th><th>Item</th><th class="text-end">Total</th></tr>
+          </thead>
+          <tbody>
+            ${list.map(o => `
+              <tr>
+                <td class="fw-semibold">${o.orderId}</td>
+                <td class="small text-muted">${o.timestamp}</td>
+                <td>${o.customerName}</td>
+                <td class="small">${o.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
+                <td class="text-end fw-bold text-success">${formatRp(o.totalPrice)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function renderAnalytics(a) {
     document.getElementById('statDaily').innerText = formatRp(a.daily.total);
     document.getElementById('countDaily').innerText = `${a.daily.count} Transaksi`;
+    document.getElementById('listDailyOrders').innerHTML = renderPeriodOrdersTable(a.daily.orders);
+
     document.getElementById('statWeekly').innerText = formatRp(a.weekly.total);
     document.getElementById('countWeekly').innerText = `${a.weekly.count} Transaksi`;
+    document.getElementById('listWeeklyOrders').innerHTML = renderPeriodOrdersTable(a.weekly.orders);
+
     document.getElementById('statMonthly').innerText = formatRp(a.monthly.total);
     document.getElementById('countMonthly').innerText = `${a.monthly.count} Transaksi`;
+    document.getElementById('listMonthlyOrders').innerHTML = renderPeriodOrdersTable(a.monthly.orders);
+
     document.getElementById('statYearly').innerText = formatRp(a.yearly.total);
     document.getElementById('countYearly').innerText = `${a.yearly.count} Transaksi`;
+    document.getElementById('listYearlyOrders').innerHTML = renderPeriodOrdersTable(a.yearly.orders);
   }
 
   function toggleMergeSelect(orderId, checked) {
@@ -988,7 +1106,7 @@
     new bootstrap.Modal(document.getElementById('menuModal')).show();
   }
 
-  function processMenuImage3x4(input) {
+  function processMenuImage1x1(input) {
     const file = input.files[0];
     if (!file) return;
 
