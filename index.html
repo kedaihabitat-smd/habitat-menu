@@ -19,6 +19,7 @@
     .floating-cart { position: fixed; bottom: 20px; right: 20px; z-index: 1000; border-radius: 50px; padding: 12px 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
     .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center; }
     #qrCanvasBox { display: flex; justify-content: center; align-items: center; padding: 12px; background: #fff; border: 1px solid #dee2e6; border-radius: 10px; }
+    .captcha-badge { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.5px; background: #f1f3f5; border: 1px dashed #6c757d; border-radius: 8px; padding: 8px 14px; display: inline-block; user-select: none; }
   </style>
 </head>
 <body>
@@ -177,6 +178,38 @@
           <input type="text" id="qrBillUrlText" class="form-control" readonly>
           <button class="btn btn-outline-secondary" type="button" onclick="copyQrBillUrl()">Salin Link</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Verifikasi CAPTCHA Hitungan Hapus Transaksi -->
+<div class="modal fade" id="captchaDeleteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-shield-exclamation"></i> Konfirmasi Hapus Transaksi</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning py-2 small mb-3">
+          Tindakan ini akan menghapus permanen catatan transaksi <strong id="captchaTargetOrderId">-</strong> (<span id="captchaTargetCustomer">-</span> — <strong id="captchaTargetTotal">-</strong>) dari database.
+        </div>
+        <label class="form-label small fw-bold d-block">Masukkan hasil hitungan CAPTCHA:</label>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span id="captchaQuestionText" class="captcha-badge">0 + 0 = ?</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" title="Ganti soal hitungan" onclick="generateMathCaptcha()">
+            <i class="bi bi-arrow-repeat"></i> Ganti Soal
+          </button>
+        </div>
+        <input type="number" id="captchaAnswerInput" class="form-control" placeholder="Ketik hasil hitungan..." onkeydown="if(event.key==='Enter') confirmDeleteTransactionWithCaptcha()">
+        <div id="captchaErrorText" class="text-danger small mt-1 d-none">Jawaban hitungan salah. Silakan coba lagi.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-danger fw-bold" onclick="confirmDeleteTransactionWithCaptcha()">
+          <i class="bi bi-trash"></i> Verifikasi & Hapus
+        </button>
       </div>
     </div>
   </div>
@@ -533,6 +566,8 @@
   let selectedDeleteIds = [];
   let activeSplitOrder = null;
   let editingOrder = null;
+  let pendingDeleteTransaction = null;
+  let expectedCaptchaAnswer = null;
 
   const formatRp = (num) => 'Rp ' + Number(num).toLocaleString('id-ID');
   const showLoader = (show) => document.getElementById('loader').classList.toggle('d-none', !show);
@@ -1095,6 +1130,75 @@
     }
   }
 
+  // ==================== DASHBOARD PENJUALAN + HAPUS TRANSAKSI + CAPTCHA ====================
+  function generateMathCaptcha() {
+    const ops = ['+', '-', 'x'];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    let a = 0, b = 0, ans = 0;
+
+    if (op === '+') {
+      a = Math.floor(Math.random() * 15) + 2;
+      b = Math.floor(Math.random() * 15) + 2;
+      ans = a + b;
+    } else if (op === '-') {
+      a = Math.floor(Math.random() * 15) + 8;
+      b = Math.floor(Math.random() * 7) + 1;
+      ans = a - b;
+    } else {
+      a = Math.floor(Math.random() * 8) + 2;
+      b = Math.floor(Math.random() * 6) + 2;
+      ans = a * b;
+    }
+
+    expectedCaptchaAnswer = ans;
+    document.getElementById('captchaQuestionText').innerText = `${a} ${op} ${b} = ?`;
+    document.getElementById('captchaAnswerInput').value = '';
+    document.getElementById('captchaErrorText').classList.add('d-none');
+  }
+
+  function promptDeleteTransactionCaptcha(orderId, customerName, totalPrice) {
+    pendingDeleteTransaction = { orderId, customerName, totalPrice };
+    document.getElementById('captchaTargetOrderId').innerText = orderId;
+    document.getElementById('captchaTargetCustomer').innerText = customerName;
+    document.getElementById('captchaTargetTotal').innerText = formatRp(totalPrice);
+    generateMathCaptcha();
+
+    const modal = new bootstrap.Modal(document.getElementById('captchaDeleteModal'));
+    modal.show();
+    setTimeout(() => {
+      const inp = document.getElementById('captchaAnswerInput');
+      if (inp) inp.focus();
+    }, 200);
+  }
+
+  async function confirmDeleteTransactionWithCaptcha() {
+    if (!pendingDeleteTransaction) return;
+    const rawVal = document.getElementById('captchaAnswerInput').value.trim();
+    const userAns = Number(rawVal);
+
+    if (rawVal === '' || isNaN(userAns) || userAns !== expectedCaptchaAnswer) {
+      document.getElementById('captchaErrorText').classList.remove('d-none');
+      generateMathCaptcha();
+      return;
+    }
+
+    const targetId = pendingDeleteTransaction.orderId;
+    pendingDeleteTransaction = null;
+    bootstrap.Modal.getInstance(document.getElementById('captchaDeleteModal')).hide();
+
+    showLoader(true);
+    try {
+      const res = await apiPost({ action: 'deleteOrdersBatch', orderIds: [targetId] });
+      renderOrders(res.orders);
+      renderAnalytics(res.analytics);
+      alert(`Catatan transaksi ${targetId} berhasil dihapus.`);
+    } catch (err) {
+      alert('Gagal menghapus transaksi: ' + err.message);
+    } finally {
+      showLoader(false);
+    }
+  }
+
   function renderPeriodOrdersTable(list) {
     if (!list || list.length === 0) {
       return '<div class="text-muted small py-3 border rounded bg-white text-center">Belum ada transaksi selesai pada periode ini.</div>';
@@ -1103,18 +1207,33 @@
       <div class="table-responsive bg-white border rounded shadow-sm">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
-            <tr><th>ID Order</th><th>Waktu</th><th>Pelanggan</th><th>Item</th><th class="text-end">Total</th></tr>
+            <tr>
+              <th>ID Order</th>
+              <th>Waktu</th>
+              <th>Pelanggan</th>
+              <th>Item</th>
+              <th class="text-end">Total</th>
+              <th class="text-center">Aksi</th>
+            </tr>
           </thead>
           <tbody>
-            ${list.map(o => `
-              <tr>
-                <td class="fw-semibold">${o.orderId}</td>
-                <td class="small text-muted">${o.timestamp}</td>
-                <td>${o.customerName}</td>
-                <td class="small">${o.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
-                <td class="text-end fw-bold text-success">${formatRp(o.totalPrice)}</td>
-              </tr>
-            `).join('')}
+            ${list.map(o => {
+              const safeCust = String(o.customerName || '').replace(/'/g, "\\'");
+              return `
+                <tr>
+                  <td class="fw-semibold">${o.orderId}</td>
+                  <td class="small text-muted">${o.timestamp}</td>
+                  <td>${o.customerName}</td>
+                  <td class="small">${o.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
+                  <td class="text-end fw-bold text-success">${formatRp(o.totalPrice)}</td>
+                  <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" title="Hapus Transaksi" onclick="promptDeleteTransactionCaptcha('${o.orderId}', '${safeCust}', ${Number(o.totalPrice || 0)})">
+                      <i class="bi bi-trash"></i> Hapus
+                    </button>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
